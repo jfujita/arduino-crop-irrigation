@@ -5,29 +5,11 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);    // I2C
 #include "RTClib.h"
 RTC_DS1307 RTC;
 
-// set all moisture sensors PIN ID
-int moisture1 = A0;
-int moisture2 = A1;
-int moisture3 = A2;
-int moisture4 = A3;
+// set watering runtime in seconds
+int water_for_seconds = 10;
 
-// declare moisture values
-int moisture1_value = 0 ;
-int moisture2_value = 0;
-int moisture3_value = 0;
-int moisture4_value = 0;
-
-// declare minimum moisture threshold to trigger watering
-int min_moisture1 = 50;
-int min_moisture2 = 50;
-int min_moisture3 = 50;
-int min_moisture4 = 50;
-
-// declare maximum moisture threshold to stop watering
-int max_moisture1 = 75;
-int max_moisture2 = 75;
-int max_moisture3 = 75;
-int max_moisture4 = 75;
+// set water intervals in hours
+int watering_interval_hours = 3;
 
 // set water relays
 int relay1 = 6;
@@ -55,23 +37,6 @@ int relay3_state_flag = 0;
 
 //relay4 state   1:open   0:close
 int relay4_state_flag = 0;
-
-static unsigned long currentMillis_send = 0;
-static unsigned long  Lasttime_send = 0;
-
-char daysOfTheWeek[7][12] = {"Sun", "Mon", "Tues", "Wed", "Thur", "Fri", "Sat",};
-unsigned long nowtime;
-unsigned long endtime;
-unsigned long nowtimeNext;
-unsigned long nowtime1;
-unsigned long endtime1;
-unsigned long nowtimeNext1;
-unsigned long nowtime2;
-unsigned long endtime2;
-unsigned long nowtimeNext2;
-unsigned long nowtime3;
-unsigned long endtime3;
-unsigned long nowtimeNext3;
 
 
 // good tomato
@@ -164,191 +129,105 @@ void setup()
   digitalWrite(relay4, LOW);
   // turn off pump
   digitalWrite(pump, LOW);
-  //pinMode(ROTARY_ANGLE_SENSOR, INPUT);
   // water_crops();
 }
 
 void loop()
 {
-  // read the value from the moisture sensors:
-  read_value();
+  // Water the plants on start... then wait watering_interval_hours hours
   water_crops();
-  int button_state = digitalRead(button);
-  if (button_state == 1)
-  {
-    read_value();
-    u8g.firstPage();
-    do
-    {
-      drawTH();
-      drawplants();
-     
-    } while ( u8g.nextPage() );
-  }
-  else
-  {
-    u8g.firstPage();
-    do
-    {
-      drawtime();
-    } while (u8g.nextPage());
-  }
+  int wait_for_ms;
+  wait_for_ms = calc_timer_interval();
+  // Convert int to unsigned long (native delay param type)
+  //delay((unsigned long)wait_for_ms);
+  delay(1080000);
 }
 
-//Set moisture value
-void read_value()
+int calc_timer_interval()
 {
-/**************These is for resistor moisture sensor***********
- float value1 = analogRead(A0);
-  moisture1_value = (value1 * 120) / 1023; delay(20);
-  float value2 = analogRead(A1);
-  moisture2_value = (value2 * 120) / 1023; delay(20);
-  float value3 = analogRead(A2);
-  moisture3_value = (value3 * 120) / 1023; delay(20);
-  float value4 = analogRead(A3);
-  moisture4_value = (value4 * 120) / 1023; delay(20);
- **********************************************************/
-/************These is for capacity moisture sensor*********/
- float value1 = analogRead(A0);
-  moisture1_value =map(value1,590,360,0,100); delay(20);
-  if(moisture1_value<0){
-    moisture1_value=0;
-  }
-  float value2 = analogRead(A1);
-  moisture2_value =map(value2,600,360,0,100); delay(20);
-  if(moisture2_value<0) {
-    moisture2_value=0;
-  }
-  float value3 = analogRead(A2);
-  moisture3_value =map(value3,600,360,0,100); delay(20);
-  if(moisture3_value<0){
-    moisture3_value=0;
-  }
-  float value4 = analogRead(A3);
-  moisture4_value =map(value4,600,360,0,100); delay(20);
-  if(moisture4_value<0) {
-    moisture4_value=0;
-  }
+  // Delay 12 hours ((43200000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 43163850 ms for perfect 12 hour delays.
+  // Delay 3 hours ((10800000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 10763850 ms for perfect 3 hour delays.
+  // Delay 1 hours ((3600000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 3563850 ms for perfect 1 hour delays.
+  
+  // Total cycle time = watering time + 2050 safety delays, * 3 plants to water
+  int cycle_time;
+  int watering_interval;
+  cycle_time = ((water_for_seconds * 1000) + 2050) * 3;
+  // Watering interval = x hours - cycle_time for exact alignment
+  watering_interval = (watering_interval_hours * 60 * 60 * 1000) - cycle_time;
+  return watering_interval;
 }
+
 
 void water_crops()
 {
-  if (moisture1_value <= min_moisture1)
-  {
-    digitalWrite(relay1, HIGH);
-    relay1_state_flag = 1;
-    delay(50);
-    toggle_pump();
-    /*
-    if (pump_state_flag == 0)
-    {
-      digitalWrite(pump, HIGH);
-      pump_state_flag = 1;
-      delay(50);
-    }*/
-  }
-  else if (moisture1_value >= max_moisture1)
-  {
-    relay1_state_flag = 0;
-    toggle_pump();
-    digitalWrite(relay1, LOW);
-    /*
-    if ((relay1_state_flag == 0) && (relay2_state_flag == 0) && (relay3_state_flag == 0) && (relay4_state_flag == 0))
-    {
-      digitalWrite(pump, LOW);
-      pump_state_flag = 0;
-      delay(50);
-    }
-    */
-  }
-  if (moisture2_value <= min_moisture2)
-  {
-    digitalWrite(relay2, HIGH);
-    relay2_state_flag = 1;
-    delay(50);
-    toggle_pump();
-    /*
-    if (pump_state_flag == 0)
-    {
-      digitalWrite(pump, HIGH);
-      pump_state_flag = 1;
-      delay(50);
-    }
-    */
-  }
-  else if (moisture2_value >= max_moisture2)
-  {
-    relay2_state_flag = 0;
-    toggle_pump();
-    digitalWrite(relay2, LOW);
-    /*
-    if ((relay1_state_flag == 0) && (relay2_state_flag == 0) && (relay3_state_flag == 0) && (relay4_state_flag == 0))
-    {
-      digitalWrite(pump, LOW);
-      pump_state_flag = 0;
-      delay(50);
-    }
-    */
-  }
-  if (moisture3_value <= min_moisture3)
-  {
-    digitalWrite(relay3, HIGH);
-    relay3_state_flag = 1;
-    delay(50);
-    toggle_pump();
-    /*
-    if (pump_state_flag == 0)
-    {
-      digitalWrite(pump, HIGH);
-      pump_state_flag = 1;
-      delay(50);
-    }
-    */
-  }
-  else if (moisture3_value >= max_moisture3)
-  {
-    relay3_state_flag = 0;
-    toggle_pump();
-    digitalWrite(relay3, LOW);
-    /*
-    if ((relay1_state_flag == 0) && (relay2_state_flag == 0) && (relay3_state_flag == 0) && (relay4_state_flag == 0))
-    {
-      digitalWrite(pump, LOW);
-      pump_state_flag = 0;
-      delay(50);
-    }
-    */
-  }
-  if (moisture4_value <= min_moisture4)
-  {
-    digitalWrite(relay4, HIGH);
-    relay4_state_flag = 1;
-    delay(50);
-    toggle_pump();
-    /*
-    if (pump_state_flag == 0)
-    {
-      digitalWrite(pump, HIGH);
-      pump_state_flag = 1;
-      delay(50);
-    }
-    */
-  }
-  else if (moisture4_value >= max_moisture4)
-  {
-    relay4_state_flag = 0;
-    toggle_pump();
-    digitalWrite(relay4, LOW);
-    /*
-    if ((relay1_state_flag == 0) && (relay2_state_flag == 0) && (relay3_state_flag == 0) && (relay4_state_flag == 0))
-    {
-      digitalWrite(pump, LOW);
-      pump_state_flag = 0;
-      delay(50);
-    }
-    */
-  }
+  digitalWrite(relay1, LOW);
+  digitalWrite(relay2, LOW);
+  digitalWrite(relay3, LOW);
+  digitalWrite(relay4, LOW);
+  
+  // Open valve 1
+  digitalWrite(relay1, HIGH);
+  relay1_state_flag = 1;
+  delay(50);
+  // Turn on pump
+  toggle_pump();
+  // Water for designated coefficient in seconds
+  delay(water_for_seconds * 1000);
+  // Signal valve 1 is closing
+  relay1_state_flag = 0;
+  // Pump to turn off based on above signal
+  toggle_pump();
+  // Close valve
+  digitalWrite(relay1, LOW);
 
+  // Open valve 2
+  digitalWrite(relay2, HIGH);
+  relay2_state_flag = 1;
+  delay(50);
+  // Turn on pump
+  toggle_pump();
+  // Water for designated coefficient in seconds
+  delay(water_for_seconds * 1000);
+  // Signal valve 2 is closing
+  relay2_state_flag = 0;
+  // Pump to turn off based on above signal
+  toggle_pump();
+  // Close valve
+  digitalWrite(relay2, LOW);
+
+  // Open valve 3
+  digitalWrite(relay3, HIGH);
+  relay3_state_flag = 1;
+  delay(50);
+  // Turn on pump
+  toggle_pump();
+  // Water for designated coefficient in seconds
+  delay(water_for_seconds * 1000);
+  // Signal valve 3 is closing
+  relay3_state_flag = 0;
+  // Pump to turn off based on above signal
+  toggle_pump();
+  // Close valve
+  digitalWrite(relay3, LOW);
+  
+
+  // Open valve 4
+  /*
+  digitalWrite(relay4, HIGH);
+  relay4_state_flag = 1;
+  delay(50);
+  // Turn on pump
+  toggle_pump();
+  // Water for designated coefficient in seconds
+  delay(water_for_seconds * 1000);
+  // Signal valve 4 is closing
+  relay4_state_flag = 0;
+  // Pump to turn off based on above signal
+  toggle_pump();
+  // Close valve
+  digitalWrite(relay4, LOW);
+  */
 }
 
 void toggle_pump()
@@ -356,24 +235,23 @@ void toggle_pump()
   // Only turn on the pump if at least one valve is open to prevent overpressurizing water supply manifold
   if ((relay1_state_flag == 1) || (relay2_state_flag == 1) || (relay3_state_flag == 1) || (relay4_state_flag == 1))
   {
-    // If pump isn't already on wait 2 seconds to allow solenoids to open fully to prevent overpressure
+    // If pump isn't already on wait 1 seconds to allow solenoids to open fully to prevent overpressure
     if(pump_state_flag == 0)
     {
-      delay(2000);
+      delay(1000);
     }
     pump_state_flag = 1;
     digitalWrite(pump, HIGH);
   }
   else //No valves are open... turn off pump
   {
-    // If pump is running, turn off and wait 2 seconds before returning so lines depressurize before valves close
+    // If pump is running, turn off and wait 1 seconds before returning so lines depressurize before valves close
     if(pump_state_flag == 1)
     {
-      delay(2000); // Wait 2 seconds to ensure spray directly on sensor still results in at least 2 seconds of watering
       pump_state_flag = 0;
       digitalWrite(pump, LOW);
-      //Wait 2 seconds before returning so lines depressurize before valves close
-      delay(2000);
+      //Wait 1 seconds before returning so lines depressurize before valves close
+      delay(1000);
     }
     else //Double check pump de-energized
     {
@@ -381,242 +259,4 @@ void toggle_pump()
       digitalWrite(pump, LOW);
     }
   }
-}
-
-
-
-void drawtime(void)
-{
-  int x = 5;
-  float i = 25.00;
-  float j = 54;
-  DateTime now = RTC.now();
-  //Serial.print(now.year(), DEC);
-  if (! RTC.isrunning())
-  {
-    u8g.setFont(u8g_font_6x10);
-    u8g.setPrintPos(5, 20);
-    u8g.print("RTC is NOT running!");
-    RTC.adjust(DateTime(__DATE__, __TIME__));
-  }
-  else
-  {
-    u8g.setFont(u8g_font_7x13);
-    u8g.setPrintPos(x, 11);
-    u8g.print(now.year(), DEC);
-    u8g.setPrintPos(x + 80, 11);
-    u8g.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    u8g.setPrintPos(x + 28, 11);
-    u8g.print("/");
-    u8g.setPrintPos(x + 33, 11);
-    u8g.print(now.month(), DEC);
-    if (now.month() < 10)
-      x -= 7;
-    u8g.setPrintPos(x + 47, 11);
-    u8g.print("/");
-    u8g.setPrintPos(x + 53, 11);
-    u8g.print(now.day(), DEC);
-    u8g.setFont(u8g_font_8x13);
-    int x = 35;
-    u8g.setPrintPos(x, 33);
-    u8g.print(now.hour(), DEC);
-    if (now.hour() < 10)
-      x -= 7;
-    u8g.setPrintPos(x + 15, 33);
-    u8g.print(":");
-    u8g.setPrintPos(x + 21, 33);
-    u8g.print(now.minute(), DEC);
-    if (now.minute() < 10)
-      x -= 7;
-    u8g.setPrintPos(x + 36, 33);
-    u8g.print(":");
-    u8g.setPrintPos(x + 42, 33);
-    u8g.print(now.second(), DEC);
-  }
-}
-
-void drawLogo(uint8_t d)
-{
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(8 + d, 30 + d, "E");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(30 + d, 30 + d, "l");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(40 + d, 30 + d, "e");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(55 + d, 30 + d, "c");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(70 + d, 30 + d, "r");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(85 + d, 30 + d, "o");
-  u8g.setFont(u8g_font_gdr25r);
-  u8g.drawStr(100 + d, 30 + d, "w");
-}
-
-
-//Draw plants
-void drawplants(void)
-{
-  if (moisture1_value < 30)
-  {
-    u8g.drawXBMP(0, 0, 32, 30, bitmap_tomato_bad);
-  }
-  else
-  {
-    u8g.drawXBMP(0, 0, 32, 30, bitmap_tomato_good);
-  }
-  if (moisture2_value < 30)
-  {
-    u8g.drawXBMP(32, 0, 32, 30, bitmap_tomato_bad);
-  }
-  else
-  {
-    u8g.drawXBMP(32, 0, 32, 30, bitmap_tomato_good);
-  }
-  if (moisture3_value < 30)
-  {
-    u8g.drawXBMP(64, 0, 32, 30, bitmap_tomato_bad);
-  }
-  else
-  {
-    u8g.drawXBMP(64, 0, 32, 30, bitmap_tomato_good);
-  }
-  if (moisture4_value < 30)
-  {
-    u8g.drawXBMP(96, 0, 32, 30, bitmap_pineapple_bad);
-  }
-  else
-  {
-    u8g.drawXBMP(96, 0, 32, 30, bitmap_pineapple_good);
-  }
-
-}
-
-
-void drawTH(void)
-{
-  int A = 0;
-  int B = 0;
-  int C = 64;
-  int D = 96;
-  char moisture1_value_temp[5] = {0};
-  char moisture2_value_temp[5] = {0};
-  char moisture3_value_temp[5] = {0};
-  char moisture4_value_temp[5] = {0};
-  read_value();
-  itoa(moisture1_value, moisture1_value_temp, 10);
-  itoa(moisture2_value, moisture2_value_temp, 10);
-  itoa(moisture3_value, moisture3_value_temp, 10);
-  itoa(moisture4_value, moisture4_value_temp, 10);
-  u8g.setFont(u8g_font_7x14);
-  u8g.setPrintPos(9, 60);
-  u8g.print("A0");
-  if (moisture1_value < 10)
-  {
-    //u8g.setPrintPos(A + 14, 45 );
-    u8g.drawStr(A + 14, 45, moisture1_value_temp);
-    delay(20);
-    u8g.drawStr(A + 14, 45, moisture1_value_temp);
-    
-  }
-  else if (moisture1_value < 100)
-  {
-    //u8g.setPrintPos(A + 7, 45);
-    u8g.drawStr(A + 7, 45, moisture1_value_temp);
-    delay(20);
-    u8g.drawStr(A + 7, 45, moisture1_value_temp);
-   
-  }
-  else
-  {
-    //u8g.setPrintPos(A + 2, 45 );
-    moisture1_value = 100;
-    itoa(moisture1_value, moisture1_value_temp, 10);
-    u8g.drawStr(A + 2, 45, moisture1_value_temp);
-  }
-  //u8g.print(moisture1_value);
-  u8g.setPrintPos(A + 23, 45 );
-  u8g.print("%");
-  u8g.setPrintPos(41, 60 );
-  u8g.print("A1");
-  if (moisture2_value < 10)
-  {
-    //u8g.setPrintPos(B + 46, 45 );
-    u8g.drawStr(B + 46, 45, moisture2_value_temp); 
-    delay(20);
-    u8g.drawStr(B + 46, 45, moisture2_value_temp); 
-  }
-  else if (moisture2_value < 100)
-  {
-    //u8g.setPrintPos(B + 39, 45);
-    u8g.drawStr(B + 39, 45, moisture2_value_temp);
-    delay(20);
-    u8g.drawStr(B + 39, 45, moisture2_value_temp);
-  }
-  else
-  {
-    //u8g.setPrintPos(B + 32, 45);
-    moisture2_value = 100;
-    itoa(moisture2_value, moisture2_value_temp, 10);
-    u8g.drawStr(B + 32, 45, moisture2_value_temp);
-  }
-  // u8g.print(moisture2_value);
-  u8g.setPrintPos(B + 54, 45);
-  u8g.print("%");
-  u8g.setPrintPos(73, 60);
-  u8g.print("A2");
-  if (moisture3_value < 10)
-  {
-    //u8g.setPrintPos(C + 14, 45 );
-    u8g.drawStr(C + 14, 45, moisture3_value_temp);
-    delay(20);
-    u8g.drawStr(C + 14, 45, moisture3_value_temp);
-    
-  }
-  else if (moisture3_value < 100)
-  {
-    // u8g.setPrintPos(C + 7, 45);
-   u8g.drawStr(C + 7, 45, moisture3_value_temp);
-    delay(20);
-    u8g.drawStr(C + 7, 45, moisture3_value_temp);
-    
-  }
-  else
-  {
-    // u8g.setPrintPos(C + 2, 45);
-    moisture3_value = 100;
-    itoa(moisture3_value, moisture3_value_temp, 10);
-    u8g.drawStr(C + 2, 45, moisture3_value_temp);
-  }
-  //u8g.print(moisture3_value);
-  u8g.setPrintPos(C + 23, 45);
-  u8g.print("%");
-  u8g.setPrintPos(105, 60);
-  u8g.print("A3");
-  if (moisture4_value < 10)
-  {
-    //u8g.setPrintPos(D + 14, 45 );
-    u8g.drawStr(D + 14, 45, moisture4_value_temp);
-    delay(20);
-    u8g.drawStr(D + 14, 45, moisture4_value_temp);
-   
-  }
-  else if (moisture4_value < 100)
-  {
-    // u8g.setPrintPos(D + 7, 45);
-    u8g.drawStr(D + 7, 45, moisture4_value_temp);
-    delay(20);
-    u8g.drawStr(D + 7, 45, moisture4_value_temp);
-  
-  }
-  else
-  {
-    //u8g.setPrintPos(D + 2, 45);
-    moisture4_value = 100;
-    itoa(moisture4_value, moisture4_value_temp, 10);
-    u8g.drawStr(D + 2, 45, moisture4_value_temp);
-  }
-  //u8g.print(moisture4_value);
-  u8g.setPrintPos(D + 23, 45);
-  u8g.print("%");
 }
