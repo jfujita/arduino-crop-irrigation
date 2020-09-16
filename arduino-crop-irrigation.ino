@@ -6,7 +6,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);    // I2C
 RTC_DS1307 RTC;
 
 // set watering runtime in seconds
-int water_for_seconds = 10;
+int water_for_seconds = 15;
 
 // set water intervals in hours
 int watering_interval_hours = 3;
