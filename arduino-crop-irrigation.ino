@@ -6,10 +6,10 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);    // I2C
 RTC_DS1307 RTC;
 
 // set watering runtime in seconds
-int water_for_seconds = 15;
+unsigned long water_for_seconds = 15;
 
 // set water intervals in hours
-int watering_interval_hours = 3;
+unsigned long watering_interval_hours = 6;
 
 // set water relays
 int relay1 = 6;
@@ -110,9 +110,10 @@ static unsigned char bitmap_H[] U8G_PROGMEM = {
 
 void setup()
 {
+  Serial.begin(9600);
+  Serial.print("Starting smart irrigation system");
   Wire.begin();
   RTC.begin();
-  Serial.begin(9600);
   // declare relay as output
   pinMode(relay1, OUTPUT);
   pinMode(relay2, OUTPUT);
@@ -136,23 +137,25 @@ void loop()
 {
   // Water the plants on start... then wait watering_interval_hours hours
   water_crops();
-  int wait_for_ms;
+  unsigned long wait_for_ms;
+  Serial.println("Calculating timer interval");
   wait_for_ms = calc_timer_interval();
-  // Convert int to unsigned long (native delay param type)
-  //delay((unsigned long)wait_for_ms);
-  delay(1080000);
+  Serial.println("Got calc_timer_interval()");
+  Serial.println(wait_for_ms);
+  delay(wait_for_ms);
 }
 
-int calc_timer_interval()
+unsigned long calc_timer_interval()
 {
   // Delay 12 hours ((43200000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 43163850 ms for perfect 12 hour delays.
   // Delay 3 hours ((10800000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 10763850 ms for perfect 3 hour delays.
   // Delay 1 hours ((3600000 ms) - total cycle time for crop waterings ~(10 seconds + 2050ms for assorted delays = 12050ms) * 3 crops = (36150ms)) = 3563850 ms for perfect 1 hour delays.
   
   // Total cycle time = watering time + 2050 safety delays, * 3 plants to water
-  int cycle_time;
-  int watering_interval;
-  cycle_time = ((water_for_seconds * 1000) + 2050) * 3;
+  unsigned long cycle_time;
+  unsigned long watering_interval;
+  // Potential for int (3) overflow via multiplication... cast to Unsigned Integer (UL) which should handle values from 0 to 4,294,967,295
+  cycle_time = ((15 * 1000) + 2050) * 3UL;
   // Watering interval = x hours - cycle_time for exact alignment
   watering_interval = (watering_interval_hours * 60 * 60 * 1000) - cycle_time;
   return watering_interval;
