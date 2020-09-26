@@ -1,15 +1,12 @@
 #include <Wire.h>
-#include "U8glib.h"
-U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE|U8G_I2C_OPT_DEV_0);    // I2C
 #include "Wire.h"
-#include "RTClib.h"
-RTC_DS1307 RTC;
+#include "display.h" //Handles U8glib display rendering
 
 // set watering runtime in seconds
 unsigned long water_for_seconds = 25;
 
 // set water intervals in hours
-unsigned long watering_interval_hours = 6;
+unsigned long watering_interval_hours = 12;
 
 // set water relays
 int relay1 = 6;
@@ -113,7 +110,7 @@ void setup()
   Serial.begin(9600);
   Serial.print("Starting smart irrigation system");
   Wire.begin();
-  RTC.begin();
+  setupDisplay();
   // declare relay as output
   pinMode(relay1, OUTPUT);
   pinMode(relay2, OUTPUT);
@@ -142,7 +139,72 @@ void loop()
   wait_for_ms = calc_timer_interval();
   Serial.println("Got calc_timer_interval()");
   Serial.println(wait_for_ms);
-  delay(wait_for_ms);
+  startTimer(wait_for_ms);
+}
+
+// Delay for wait_for_ms while rendering the countdown clock
+void startTimer(unsigned long wait_for_ms)
+{
+  //Run off of internal millis() which returns the number of milliseconds passed since the program started
+  //Juggling delay() intervals will add execution time to time drift.
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime + wait_for_ms;
+  unsigned long waitForSeconds = 0;
+  waitForSeconds = (endTime - millis())/1000;
+
+  while(waitForSeconds > 0)
+  {
+    displayString(formatTime(waitForSeconds));
+    delay(100);
+    waitForSeconds = (endTime - millis())/1000;
+  }
+}
+
+String formatTime(unsigned long secondCount)
+{
+  int hours = secondCount/3600;
+  int minutes = (secondCount%3600)/60;
+  int seconds = secondCount%60;
+  String timeString = "";
+  if(hours < 10)
+  {
+    timeString += "0";
+    timeString += hours;
+    timeString += ":";
+  }
+  else
+  {
+    timeString += hours;
+    timeString += ":";
+  }
+  if(minutes < 10)
+  {
+    timeString += "0";
+    timeString += minutes;
+    timeString += ":";
+  }
+  else
+  {
+    timeString += minutes;
+    timeString += ":";
+  }
+  if(seconds < 10)
+  {
+    timeString += "0";
+    timeString += seconds;
+  }
+  else
+  {
+    timeString += seconds;
+  }
+  /*
+  Serial.print(hours);
+  Serial.print(":");
+  Serial.print(minutes);
+  Serial.print(":");
+  Serial.println(seconds);*/
+  Serial.println(timeString);
+  return timeString;
 }
 
 unsigned long calc_timer_interval()
@@ -155,7 +217,7 @@ unsigned long calc_timer_interval()
   unsigned long cycle_time;
   unsigned long watering_interval;
   // Potential for int (3) overflow via multiplication... cast to Unsigned Integer (UL) which should handle values from 0 to 4,294,967,295
-  cycle_time = ((15 * 1000) + 2050) * 3UL;
+  cycle_time = ((water_for_seconds * 1000) + 2050) * 3UL;
   // Watering interval = x hours - cycle_time for exact alignment
   watering_interval = (watering_interval_hours * 60 * 60 * 1000) - cycle_time;
   return watering_interval;
@@ -164,6 +226,7 @@ unsigned long calc_timer_interval()
 
 void water_crops()
 {
+  displayString("Watering");
   digitalWrite(relay1, LOW);
   digitalWrite(relay2, LOW);
   digitalWrite(relay3, LOW);
